@@ -1,0 +1,348 @@
+\documentclass[11pt,letterpaper,oneside]{book}
+\usepackage{listings}
+%\usepackage{color}
+\usepackage[usenames,dvipsnames,svgnames,table]{xcolor}
+\usepackage{graphicx}
+%\usepackage{fancybox}
+\usepackage{fourier}
+\usepackage{float}
+\usepackage{hyperref}
+\usepackage{pdflscape}
+\usepackage{multicol}
+\usepackage{caption}
+\usepackage{courier}
+\usepackage[letterpaper]{geometry}
+
+%http://stackoverflow.com/questions/741985/latex-source-code-listing-like-in-professional-books
+%\usepackage{caption}
+%\DeclareCaptionFont{white}{\color{white}}
+%\DeclareCaptionFormat{listing}{\colorbox{gray}{\parbox{\textwidth}{#1#2#3}}}
+%\captionsetup[lstlisting]{format=listing,labelfont=white,textfont=white}
+
+\hypersetup{colorlinks,%
+citecolor=black,%
+filecolor=black,%
+linkcolor=black,%
+urlcolor=black,%
+}
+
+\lstset{
+basicstyle=\fontsize{10}{11}\ttfamily,
+keywordstyle=\color{blue},
+commentstyle=\color{DarkGreen},
+stringstyle=\color{red},
+numbers=left,
+numberstyle=\tiny,
+frame=tb,
+%columns=fullflexible,
+showstringspaces=false
+captionpos=b,
+numbersep=5pt,
+breaklines=true,                        
+breakatwhitespace=false 
+}
+
+\setcounter{secnumdepth}{4}
+
+\title{OpenStack Icehouse Multiple Virtual Machines Manual}
+\author{Joseph Callen}
+
+\begin{document}
+
+\frontmatter
+
+
+\maketitle
+\mainmatter
+
+
+
+\chapter{Packstack}
+\section{Prerequisites}
+You can use any hypervisor: VMware Workstation, Fusion, Player, ESXi, KVM w/virt-manager (you don't really need virt-manager with KVM, just makes it easier) or  VirtualBox.  As of this writing download a network-based install CD of Fedora 20.  This will allow you to create a minimal install that is all up to date.  The OS disk needs minimally 8 GB and a secondary disk for cinder volumes which should be at least 20 GB.  I recommend using the NAT network interface since it will provide a route and DNS.  We will overlap IP addresses of the DHCP server but that shouldn't be an issue unless you have multiple virtual machines running.
+
+After the OS has been installed lets create our cinder-volumes volume group.  In this example the device is named vdb, yours could be different.  To determine disk name use \texttt{dmesg} or \texttt{fdisk -l}.
+\begin{lstlisting}[caption={Create Cinder Volume VG},language=bash]
+vgcreate cinder-volumes /dev/vdb
+\end{lstlisting}
+
+\begin{lstlisting}[caption={Disable firewalld, enable iptables-services},language=bash]
+systemctl enable network
+systemctl disable firewalld
+yum install iptables-services -y
+systemctl enable iptables.service
+\end{lstlisting}
+
+The configurations files that Packstack creates will use your IP address not the hostname so we need to make sure that we have a static IP before generating the answer file.  Lets first determine your current network information.
+\begin{lstlisting}[caption={Current IP address},language=bash]
+[root@virsatpaw001 ~]# ip a
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 16436 qdisc noqueue state UNKNOWN 
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+    inet6 ::1/128 scope host 
+       valid_lft forever preferred_lft forever
+2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast state UP qlen 1000
+    link/ether 52:54:00:e7:12:47 brd ff:ff:ff:ff:ff:ff
+    inet 192.168.122.10/24 brd 192.168.122.255 scope global eth0
+    inet6 fe80::5054:ff:fee7:1247/64 scope link 
+       valid_lft forever preferred_lft forever
+\end{lstlisting}
+Line 9 displays our current IP and subnet mask of 192.168.122.10 /24 (or 255.255.255.0).
+
+\begin{lstlisting}[caption={Current Default Route},language=bash]
+[root@virsatpaw001 ~]# ip route
+192.168.122.0/24 dev eth0  proto kernel  scope link  src 192.168.122.10
+169.254.0.0/16 dev eth0  scope link  metric 1002 
+default via 192.168.122.1 dev eth0 
+\end{lstlisting}
+Line 4 displays our current default gateway of 192.168.122.1.
+
+\begin{lstlisting}[caption={Current Resolver},language=bash]
+[root@virsatpaw001 ~]# cat /etc/resolv.conf
+nameserver 192.168.122.1
+\end{lstlisting}
+
+
+Based on your device name there will be a corresponding ifcfg file.  DEVICE, IPADDR, NETMASK, GATEWAY and DNS1,2 will be based on your network.  Modify the file removing options that don't exist in the example below, adding the options that do.
+\begin{lstlisting}[caption={Modify Ethernet interface from DHCP to static},language=bash]
+vi /etc/sysconfig/network-scripts/ifcfg-
+\end{lstlisting}
+
+\begin{lstlisting}[caption={Example Ethernet configuration},language=bash]
+DEVICE=eth0
+TYPE=Ethernet
+ONBOOT=yes
+NM_CONTROLLED=no
+BOOTPROTO=static
+NAME="eth0"
+IPADDR=192.168.122.10
+NETMASK=255.255.255.0
+GATEWAY=192.168.122.1
+DNS1=192.168.122.1
+\end{lstlisting}
+At this point let us reboot.  When the virtual machine is available make sure that you can still reach the default gateway, then proceed to the next section.
+
+
+
+\chapter{Multi Node install}
+
+\begin{lstlisting}[caption={foo},language=bash]
+
+\end{lstlisting}
+
+\begin{lstlisting}[caption={foo},language=bash]
+virt-sysprep -a /dev/virtualmachine/virctlpaw001 --hostname virctlpaw001.virtomation.com \
+--firstboot-command "sed -i -r 's/IPADDR=(\b[0-9]{1,3}\.){3}[0-9]{1,3}\b'/IPADDR=10.53.252.61/ /etc/sysconfig/network-scripts/ifcfg-eth0" \
+--firstboot-command 'systemctl restart network' \
+--firstboot-command 'yum install -y http://rdo.fedorapeople.org/rdo-release.rpm' \
+--firstboot-command 'yum install openstack-packstack -y' 
+\end{lstlisting}
+
+\begin{lstlisting}[caption={foo},language=bash]
+alias yi="yum -y install"
+alias start="systemctl start"
+alias e="systemctl enable"
+alias ocs="openstack-config --set"
+\end{lstlisting}
+
+\begin{lstlisting}[caption={foo},language=bash]
+yum install mariadb mariadb-server -y
+systemctl enable mariadb.service 
+systemctl start mariadb.service 
+netstat -tanp | grep 3306
+mysql_secure_installation 
+\end{lstlisting}
+
+\begin{lstlisting}[caption={foo},language=bash]
+yum install yum-plugin-priorities.noarch 
+alias yi="yum -y install"
+\end{lstlisting}
+
+\begin{lstlisting}[caption={foo},language=bash]
+yi rabbitmq-server
+e rabbitmq-server
+systemctl start rabbitmq-server.service
+\end{lstlisting}
+
+\begin{lstlisting}[caption={Add the public network to the router},language=bash]
+[root@virctlpaw001 jcallen]# for serv in "cinder" "nova" "neutron" "heat"; do passwd=`openssl rand -base64 8`; echo "$serv - $passwd"; rabbitmqctl add_user $serv $passwd; done
+\end{lstlisting}
+
+
+
+
+\begin{lstlisting}[caption={Add the public network to the router},language=bash]
+cinder - Q7gPp1FOK5g=
+Creating user "cinder" ...
+...done.
+nova - 2mM7OaVNFKM=
+Creating user "nova" ...
+...done.
+neutron - krPOwjPbKJs=
+Creating user "neutron" ...
+...done.
+heat - l2iDSln7nmw=
+Creating user "heat" ...
+...done.
+\end{lstlisting}
+
+\begin{lstlisting}[caption={foo},language=bash]
+yi openstack-keystone openstack-utils 
+mysql -u root -p
+export SERVICE_TOKEN=$(openssl rand -hex 10)
+echo $SERVICE_TOKEN > ~/ks_admin_token
+
+\end{lstlisting}
+
+\begin{lstlisting}[caption={foo},language=bash]
+ocs /etc/keystone/keystone.conf DEFAULT admin_token $SERIVCE_TOKEN
+ocs /etc/keystone/keystone.conf DEFAULT admin_token $SERVICE_TOKEN
+ocs /etc/keystone/keystone.conf sql connection mysql://keystone:trustn01@10.53.252.61/keystone
+keystone-manage pki_setup --keystone-user keystone --keystone-group keystone 
+su -s /bin/sh -c "keystone-manage db_sync" keystone
+tail /var/log/keystone/keystone.log 
+mysql -u keystone -p
+vi /etc/keystone/keystone.conf 
+mysql -h 10.53.252.61 -u keystone -p
+vi /etc/keystone/keystone.conf 
+su -s /bin/sh -c "keystone-manage db_sync" keystone
+mysql -u keystone -p -h 10.53.252.61 keystone
+chown -R keystone:keystone /var/log/keystone 
+/etc/keystone/ssl/
+chown -R keystone:keystone /var/log/keystone /etc/keystone/ssl/
+su -s /bin/sh -c "keystone-manage db_sync" keystone
+history
+keystone-manage pki_setup --keystone-user keystone --keystone-group keystone 
+yi python-keystoneclient
+chmod -R o-rwx /etc/keystone/ssl
+history | alias
+start openstack-keystone
+systemctl status openstack-keystone.service 
+firewall-cmd --permanent --add-port=5000/tcp
+history
+export OS_SERVICE_TOKEN=$SERVICE_TOKEN
+export OS_SERVICE_ENDPOINT=http://10.53.252.61:35357/v2.0
+keystone user-create --name=admin --pass=trustn01
+keystone role-create --name=admin
+keystone tenant-create --name=admin --description="Admin Tenant"
+keystone user-role-add --user=admin --tenant=admin --role=admin
+keystone user-role-add --user=admin --role=_member_ --tenant=admin
+source /etc/bash_completion.d/keystone.bash_completion 
+keystone tenant-create --name=service --description="Service Tenant"
+keystone service-create --name=keystone --type=identity --description="OpenStack Identity"
+keystone endpoint-create --service=keystone --publicurl=http://10.53.252.61:5000/v2.0 --internalurl=http://10.53.252.61:5000/v2.0 --adminurl=http://10.53.252.61:35357/v2.0
+\end{lstlisting}
+
+
+
+\begin{lstlisting}[caption={\danger Unset environment variables},language=bash]
+unset OS_SERVICE_ENDPOINT
+unset OS_ENDPOINT
+unset OS_SERVICE_TOKEN
+unset SERVICE_TOKEN
+\end{lstlisting}
+
+
+\begin{lstlisting}[caption={\danger Error msg if environment variables are not unset},language=bash]
+[root@virctlpaw001 ~]# keystone catalog 
+'NoneType' object has no attribute 'has_service_catalog'
+\end{lstlisting}
+
+\begin{lstlisting}[caption={foo},language=bash]
+yi glance...
+yum install -y openstack-swift-proxy \
+openstack-swift-object \
+openstack-swift-container \
+openstack-swift-account \
+openstack-utils \
+memcached
+
+fdisk /dev/vdb
+mkfs.ext4 /dev/vdb1 
+
+[root@virctlpaw001 ~(keystone_admin)]# blkid /dev/vdb1 
+/dev/vdb1: UUID="7cefc9b8-3313-40cb-941b-78b35c029bac" TYPE="ext4" PARTUUID="9faed234-01" 
+
+vi /etc/fstab 
+mkdir -p /srv/node/d1
+mount --help
+mount -a
+
+ocs /etc/swift/swift.conf swift-hash swift_hash_path_prefix $(openssl rand -hex 10)
+ocs /etc/swift/swift.conf swift-hash swift_hash_path_suffix $(openssl rand -hex 10)
+clear
+ocs /etc/swift/object-server.conf DEFAULT bind_ip 10.53.252.61
+ocs /etc/swift/account-server.conf DEFAULT bind_ip 10.53.252.61
+ocs /etc/swift/container-server.conf DEFAULT bind_ip 10.53.252.61
+
+
+clear
+for swiftserv in "openstack-swift-account" "openstack-swift-container" "openstack-swift-object"; do systemctl enable $swiftserv; systemctl start $swiftserv; done
+
+ocs /etc/swift/proxy-server.conf filter:authtoken auth_host 10.53.252.61
+ocs /etc/swift/proxy-server.conf filter:authtoken auth_tenant_name service
+ocs /etc/swift/proxy-server.conf filter:authtoken admin_user swift
+ocs /etc/swift/proxy-server.conf filter:authtoken admin_password trustn01
+
+
+for ops_service in "memcached" "openstack-swift-proxy" ; do systemctl enable $ops_service; systemctl start $ops_service; done
+
+
+\end{lstlisting}
+
+% return to swift later need another node
+\begin{lstlisting}[caption={foo},language=bash]
+keystone user-create --name glance --pass trustn01
+keystone user-role-add --user glance --role admin --tenant service
+keystone service-create --name glance --type image --description "Glance Image Service"
+keystone endpoint-create --service glance --publicurl "http://10.53.252.61:9292" --adminurl "http://10.53.252.61:9292" --internalurl "http://10.53.252.61:9292"
+openstack-config --set /etc/glance/glance-api.conf DEFAULT sql_connection mysql://glance:trustn01@10.53.252.61/glance
+clear
+openstack-config --set /etc/glance/glance-api.conf paste_deploy flavor keystone
+ openstack-config --set /etc/glance/glance-api.conf keystone_authtoken auth_host 10.53.252.61
+ openstack-config --set /etc/glance/glance-api.conf keystone_authtoken auth_port 35357
+ openstack-config --set /etc/glance/glance-api.conf keystone_authtoken auth_protocol http
+ openstack-config --set /etc/glance/glance-api.conf keystone_authtoken admin_tenant_name service
+ openstack-config --set /etc/glance/glance-api.conf keystone_authtoken admin_user glance
+ openstack-config --set /etc/glance/glance-api.conf keystone_authtoken admin_password trustn01
+clear
+openstack-config --set /etc/glance/glance-registry.conf paste_deploy flavor keystone
+openstack-config --set /etc/glance/glance-registry.conf keystone_authtoken auth_host 10.53.252.61
+openstack-config --set /etc/glance/glance-registry.conf keystone_authtoken auth_port 35357
+openstack-config --set /etc/glance/glance-registry.conf keystone_authtoken auth_protocol http
+openstack-config --set /etc/glance/glance-registry.conf keystone_authtoken admin_tenant_name service
+openstack-config --set /etc/glance/glance-registry.conf keystone_authtoken admin_user glance
+openstack-config --set /etc/glance/glance-registry.conf keystone_authtoken admin_password trustn01
+\end{lstlisting}
+
+
+%https://bugzilla.redhat.com/show_bug.cgi?id=1090648
+\begin{lstlisting}[caption={\danger Red Hat bug},language=bash]
+2014-08-12 15:06:55.083 1694 CRITICAL glance [-] ValueError: Tables "migrate_version" have non utf8 collation, please make sure all tables are CHARSET=utf8
+2014-08-12 15:06:55.083 1694 TRACE glance Traceback (most recent call last):
+2014-08-12 15:06:55.083 1694 TRACE glance   File "/bin/glance-manage", line 10, in <module>
+2014-08-12 15:06:55.083 1694 TRACE glance     sys.exit(main())
+2014-08-12 15:06:55.083 1694 TRACE glance   File "/usr/lib/python2.7/site-packages/glance/cmd/manage.py", line 259, in main
+2014-08-12 15:06:55.083 1694 TRACE glance     return CONF.command.action_fn()
+2014-08-12 15:06:55.083 1694 TRACE glance   File "/usr/lib/python2.7/site-packages/glance/cmd/manage.py", line 160, in sync
+2014-08-12 15:06:55.083 1694 TRACE glance     CONF.command.current_version)
+2014-08-12 15:06:55.083 1694 TRACE glance   File "/usr/lib/python2.7/site-packages/glance/cmd/manage.py", line 137, in sync
+2014-08-12 15:06:55.083 1694 TRACE glance     sanity_check=self._need_sanity_check())
+2014-08-12 15:06:55.083 1694 TRACE glance   File "/usr/lib/python2.7/site-packages/glance/openstack/common/db/sqlalchemy/migration.py", line 195, in db_sync
+2014-08-12 15:06:55.083 1694 TRACE glance     _db_schema_sanity_check(engine)
+2014-08-12 15:06:55.083 1694 TRACE glance   File "/usr/lib/python2.7/site-packages/glance/openstack/common/db/sqlalchemy/migration.py", line 221, in _db_schema_sanity_check
+2014-08-12 15:06:55.083 1694 TRACE glance     ) % ','.join(table_names))
+2014-08-12 15:06:55.083 1694 TRACE glance ValueError: Tables "migrate_version" have non utf8 collation, please make sure all tables are CHARSET=utf8
+2014-08-12 15:06:55.083 1694 TRACE glance
+\end{lstlisting}
+
+\begin{lstlisting}[caption={\danger Red Hat bug},language=bash]
+vi /etc/glance/glance-api.conf 
+su -s /bin/sh -c "glance-manage db_sync" glance
+mysql -u glance -p -e "show tables" glance
+\end{lstlisting}
+
+
+
+\end{document}
+
