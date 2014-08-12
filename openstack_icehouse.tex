@@ -122,15 +122,35 @@ DNS1=192.168.122.1
 \end{lstlisting}
 At this point let us reboot.  When the virtual machine is available make sure that you can still reach the default gateway, then proceed to the next section.
 
-
-
-\chapter{Multi Node install}
-
-\begin{lstlisting}[caption={foo},language=bash]
-
+\chapter{Physical Hardware}
+\begin{lstlisting}[caption={Open vSwitch},language=xml]
+<network>
+  <name>ovs-network</name>
+  <uuid>2fde288e-242c-4b48-95f4-28f844c768f4</uuid>
+  <forward mode='bridge'/>
+  <bridge name='ovsbr0'/>
+  <virtualport type='openvswitch'/>
+  <portgroup name='vlan-252'>
+    <vlan>
+      <tag id='252'/>
+    </vlan>
+  </portgroup>
+  <portgroup name='vlan-253'>
+    <vlan>
+      <tag id='253'/>
+    </vlan>
+  </portgroup>
+  <portgroup name='vlan-all'>
+    <vlan trunk='yes'>
+      <tag id='80'/>
+      <tag id='81'/>
+    </vlan>
+  </portgroup>
+</network>
 \end{lstlisting}
 
-\begin{lstlisting}[caption={foo},language=bash]
+\section{Clone and sysprep}
+\begin{lstlisting}[caption={Sysprep example},language=bash]
 virt-sysprep -a /dev/virtualmachine/virctlpaw001 --hostname virctlpaw001.virtomation.com \
 --firstboot-command "sed -i -r 's/IPADDR=(\b[0-9]{1,3}\.){3}[0-9]{1,3}\b'/IPADDR=10.53.252.61/ /etc/sysconfig/network-scripts/ifcfg-eth0" \
 --firstboot-command 'systemctl restart network' \
@@ -138,40 +158,35 @@ virt-sysprep -a /dev/virtualmachine/virctlpaw001 --hostname virctlpaw001.virtoma
 --firstboot-command 'yum install openstack-packstack -y' 
 \end{lstlisting}
 
-\begin{lstlisting}[caption={foo},language=bash]
+\chapter{Prerequisites}
+
+\begin{lstlisting}[caption={Bash Aliases},language=bash]
 alias yi="yum -y install"
 alias start="systemctl start"
 alias e="systemctl enable"
 alias ocs="openstack-config --set"
 \end{lstlisting}
 
-\begin{lstlisting}[caption={foo},language=bash]
-yum install mariadb mariadb-server -y
-systemctl enable mariadb.service 
-systemctl start mariadb.service 
+\begin{lstlisting}[caption={Database Install},language=bash]
+yi mariadb mariadb-server
+e mariadb.service 
+start mariadb.service 
 netstat -tanp | grep 3306
 mysql_secure_installation 
 \end{lstlisting}
 
-\begin{lstlisting}[caption={foo},language=bash]
-yum install yum-plugin-priorities.noarch 
-alias yi="yum -y install"
-\end{lstlisting}
-
-\begin{lstlisting}[caption={foo},language=bash]
+\begin{lstlisting}[caption={RabbitMQ Install},language=bash]
 yi rabbitmq-server
 e rabbitmq-server
-systemctl start rabbitmq-server.service
+start rabbitmq-server.service
 \end{lstlisting}
 
-\begin{lstlisting}[caption={Add the public network to the router},language=bash]
-[root@virctlpaw001 jcallen]# for serv in "cinder" "nova" "neutron" "heat"; do passwd=`openssl rand -base64 8`; echo "$serv - $passwd"; rabbitmqctl add_user $serv $passwd; done
+\begin{lstlisting}[caption={Create RabbitMQ User Accounts},language=bash]
+for serv in "cinder" "nova" "neutron" "heat"; do passwd=`openssl rand -base64 8`; echo "$serv - $passwd"; rabbitmqctl add_user $serv $passwd; done
 \end{lstlisting}
 
 
-
-
-\begin{lstlisting}[caption={Add the public network to the router},language=bash]
+\begin{lstlisting}[caption={Result from user account creation},language=bash]
 cinder - Q7gPp1FOK5g=
 Creating user "cinder" ...
 ...done.
@@ -186,13 +201,17 @@ Creating user "heat" ...
 ...done.
 \end{lstlisting}
 
+\chapter{Keystone}
+
+\section{Installation}
 \begin{lstlisting}[caption={foo},language=bash]
 yi openstack-keystone openstack-utils 
 mysql -u root -p
 export SERVICE_TOKEN=$(openssl rand -hex 10)
 echo $SERVICE_TOKEN > ~/ks_admin_token
-
 \end{lstlisting}
+
+\section{Database}
 
 \begin{lstlisting}[caption={foo},language=bash]
 chown -R keystone:keystone /var/log/keystone /etc/keystone/ssl/
@@ -201,42 +220,48 @@ ocs /etc/keystone/keystone.conf DEFAULT admin_token $SERVICE_TOKEN
 ocs /etc/keystone/keystone.conf sql connection mysql://keystone:trustn01@10.53.252.61/keystone
 keystone-manage pki_setup --keystone-user keystone --keystone-group keystone 
 su -s /bin/sh -c "keystone-manage db_sync" keystone
+\end{lstlisting}
+
+\begin{lstlisting}[caption={Start and enable Keystone},language=bash]
 start openstack-keystone
-systemctl status openstack-keystone.service 
+e openstack-keystone
 \end{lstlisting}
 
 
-
-\begin{lstlisting}[caption={\danger Unset environment variables},language=bash]
+\section{Admin User and Tenant}
+\begin{lstlisting}[caption={Keystone ???},language=bash]
 export OS_SERVICE_TOKEN=$SERVICE_TOKEN
 export OS_SERVICE_ENDPOINT=http://10.53.252.61:35357/v2.0
+source /etc/bash_completion.d/keystone.bash_completion 
+
 keystone user-create --name=admin --pass=trustn01
 keystone role-create --name=admin
 keystone tenant-create --name=admin --description="Admin Tenant"
 keystone user-role-add --user=admin --tenant=admin --role=admin
 keystone user-role-add --user=admin --role=_member_ --tenant=admin
-source /etc/bash_completion.d/keystone.bash_completion 
 keystone tenant-create --name=service --description="Service Tenant"
-keystone service-create --name=keystone --type=identity --description="OpenStack Identity"
-keystone endpoint-create --service=keystone --publicurl=http://10.53.252.61:5000/v2.0 --internalurl=http://10.53.252.61:5000/v2.0 --adminurl=http://10.53.252.61:35357/v2.0
+keystone service-create --name=keystone --type=identity --description="OpenStack Identity" keystone endpoint-create --service=keystone --publicurl=http://10.53.252.61:5000/v2.0 --internalurl=http://10.53.252.61:5000/v2.0 --adminurl=http://10.53.252.61:35357/v2.0
 \end{lstlisting}
 
-
-
-\begin{lstlisting}[caption={\danger Unset environment variables},language=bash]
+\begin{lstlisting}[caption={Unset Environment variables},language=bash]
 unset OS_SERVICE_ENDPOINT
 unset OS_ENDPOINT
 unset OS_SERVICE_TOKEN
 unset SERVICE_TOKEN
 \end{lstlisting}
 
+\begin{huge} \danger \end{huge} Make sure that you unset environmental variables or you will receive keystone errors like below.
 
-\begin{lstlisting}[caption={\danger Error msg if environment variables are not unset},language=bash]
+
+\begin{lstlisting}[caption={Keystone Error Message},language=bash]
 [root@virctlpaw001 ~]# keystone catalog 
 'NoneType' object has no attribute 'has_service_catalog'
 \end{lstlisting}
 
-\begin{lstlisting}[caption={foo},language=bash]
+\chapter{Swift}
+
+\begin{huge} \danger \end{huge} This chapter is a mess, ignore
+\begin{lstlisting}[caption={Install Swift},language=bash]
 yi glance...
 yum install -y openstack-swift-proxy \
 openstack-swift-object \
@@ -244,68 +269,68 @@ openstack-swift-container \
 openstack-swift-account \
 openstack-utils \
 memcached
+\end{lstlisting}
 
+\begin{lstlisting}[caption={Install Swift},language=bash]
 fdisk /dev/vdb
 mkfs.ext4 /dev/vdb1 
-
 [root@virctlpaw001 ~(keystone_admin)]# blkid /dev/vdb1 
 /dev/vdb1: UUID="7cefc9b8-3313-40cb-941b-78b35c029bac" TYPE="ext4" PARTUUID="9faed234-01" 
-
 vi /etc/fstab 
 mkdir -p /srv/node/d1
-mount --help
 mount -a
+\end{lstlisting}
 
+\begin{lstlisting}[caption={Swift account, container, object},language=bash]
 ocs /etc/swift/swift.conf swift-hash swift_hash_path_prefix $(openssl rand -hex 10)
 ocs /etc/swift/swift.conf swift-hash swift_hash_path_suffix $(openssl rand -hex 10)
-clear
 ocs /etc/swift/object-server.conf DEFAULT bind_ip 10.53.252.61
 ocs /etc/swift/account-server.conf DEFAULT bind_ip 10.53.252.61
 ocs /etc/swift/container-server.conf DEFAULT bind_ip 10.53.252.61
+for ops_service in "openstack-swift-account" "openstack-swift-container" "openstack-swift-object"; do systemctl enable $ops_service; systemctl start $ops_service; done
+\end{lstlisting}
 
 
-clear
-for swiftserv in "openstack-swift-account" "openstack-swift-container" "openstack-swift-object"; do systemctl enable $swiftserv; systemctl start $swiftserv; done
-
+\begin{lstlisting}[caption={Swift Proxy},language=bash]
 ocs /etc/swift/proxy-server.conf filter:authtoken auth_host 10.53.252.61
 ocs /etc/swift/proxy-server.conf filter:authtoken auth_tenant_name service
 ocs /etc/swift/proxy-server.conf filter:authtoken admin_user swift
 ocs /etc/swift/proxy-server.conf filter:authtoken admin_password trustn01
-
-
 for ops_service in "memcached" "openstack-swift-proxy" ; do systemctl enable $ops_service; systemctl start $ops_service; done
-
-
 \end{lstlisting}
 
 % return to swift later need another node
-\begin{lstlisting}[caption={foo},language=bash]
+
+\chapter{Glance}
+
+\begin{lstlisting}[caption={Glance Keystone create},language=bash]
 keystone user-create --name glance --pass trustn01
 keystone user-role-add --user glance --role admin --tenant service
 keystone service-create --name glance --type image --description "Glance Image Service"
 keystone endpoint-create --service glance --publicurl "http://10.53.252.61:9292" --adminurl "http://10.53.252.61:9292" --internalurl "http://10.53.252.61:9292"
-
 \end{lstlisting}
+
+\section{Configuration}
 \begin{lstlisting}[caption={foo},language=bash]
 openstack-config --set /etc/glance/glance-api.conf DEFAULT sql_connection mysql://glance:trustn01@10.53.252.61/glance
 
-openstack-config --set /etc/glance/glance-registry.conf DEFAULT sql_connection mysql://glance:trustn01@10.53.252.61/glance
+ocs /etc/glance/glance-registry.conf DEFAULT sql_connection mysql://glance:trustn01@10.53.252.61/glance
 
-openstack-config --set /etc/glance/glance-api.conf paste_deploy flavor keystone
- openstack-config --set /etc/glance/glance-api.conf keystone_authtoken auth_host 10.53.252.61
- openstack-config --set /etc/glance/glance-api.conf keystone_authtoken auth_port 35357
- openstack-config --set /etc/glance/glance-api.conf keystone_authtoken auth_protocol http
- openstack-config --set /etc/glance/glance-api.conf keystone_authtoken admin_tenant_name service
- openstack-config --set /etc/glance/glance-api.conf keystone_authtoken admin_user glance
- openstack-config --set /etc/glance/glance-api.conf keystone_authtoken admin_password trustn01
-clear
-openstack-config --set /etc/glance/glance-registry.conf paste_deploy flavor keystone
-openstack-config --set /etc/glance/glance-registry.conf keystone_authtoken auth_host 10.53.252.61
-openstack-config --set /etc/glance/glance-registry.conf keystone_authtoken auth_port 35357
-openstack-config --set /etc/glance/glance-registry.conf keystone_authtoken auth_protocol http
-openstack-config --set /etc/glance/glance-registry.conf keystone_authtoken admin_tenant_name service
-openstack-config --set /etc/glance/glance-registry.conf keystone_authtoken admin_user glance
-openstack-config --set /etc/glance/glance-registry.conf keystone_authtoken admin_password trustn01
+ocs /etc/glance/glance-api.conf paste_deploy flavor keystone
+ocs /etc/glance/glance-api.conf keystone_authtoken auth_host 10.53.252.61
+ocs /etc/glance/glance-api.conf keystone_authtoken auth_port 35357
+ocs /etc/glance/glance-api.conf keystone_authtoken auth_protocol http
+ocs /etc/glance/glance-api.conf keystone_authtoken admin_tenant_name service
+ocs /etc/glance/glance-api.conf keystone_authtoken admin_user glance
+ocs /etc/glance/glance-api.conf keystone_authtoken admin_password trustn01
+
+ocs /etc/glance/glance-registry.conf paste_deploy flavor keystone
+ocs /etc/glance/glance-registry.conf keystone_authtoken auth_host 10.53.252.61
+ocs /etc/glance/glance-registry.conf keystone_authtoken auth_port 35357
+ocs /etc/glance/glance-registry.conf keystone_authtoken auth_protocol http
+ocs /etc/glance/glance-registry.conf keystone_authtoken admin_tenant_name service
+ocs /etc/glance/glance-registry.conf keystone_authtoken admin_user glance
+ocs /etc/glance/glance-registry.conf keystone_authtoken admin_password trustn01
 \end{lstlisting}
 
 
