@@ -311,19 +311,19 @@ keystone endpoint-create --service glance --publicurl "http://10.53.252.61:9292"
 \end{lstlisting}
 
 \section{Configuration}
-\begin{lstlisting}[caption={foo},language=bash]
+\begin{lstlisting}[caption={Glance API},language=bash]
 openstack-config --set /etc/glance/glance-api.conf DEFAULT sql_connection mysql://glance:trustn01@10.53.252.61/glance
-
-ocs /etc/glance/glance-registry.conf DEFAULT sql_connection mysql://glance:trustn01@10.53.252.61/glance
-
 ocs /etc/glance/glance-api.conf paste_deploy flavor keystone
 ocs /etc/glance/glance-api.conf keystone_authtoken auth_host 10.53.252.61
 ocs /etc/glance/glance-api.conf keystone_authtoken auth_port 35357
 ocs /etc/glance/glance-api.conf keystone_authtoken auth_protocol http
 ocs /etc/glance/glance-api.conf keystone_authtoken admin_tenant_name service
 ocs /etc/glance/glance-api.conf keystone_authtoken admin_user glance
-ocs /etc/glance/glance-api.conf keystone_authtoken admin_password trustn01
+ocs /etc/glance/glance-api.conf keystone_authtoen admin_password trustn01
+\end{lstlisting}
 
+\begin{lstlisting}[caption={Glance Registry},language=bash]
+ocs /etc/glance/glance-registry.conf DEFAULT sql_connection mysql://glance:trustn01@10.53.252.61/glance
 ocs /etc/glance/glance-registry.conf paste_deploy flavor keystone
 ocs /etc/glance/glance-registry.conf keystone_authtoken auth_host 10.53.252.61
 ocs /etc/glance/glance-registry.conf keystone_authtoken auth_port 35357
@@ -334,8 +334,8 @@ ocs /etc/glance/glance-registry.conf keystone_authtoken admin_password trustn01
 \end{lstlisting}
 
 
-%https://bugzilla.redhat.com/show_bug.cgi?id=1090648
-\begin{lstlisting}[caption={\danger Red Hat bug},language=bash]
+%
+\begin{lstlisting}[numbers=none,caption={\href{https://bugzilla.redhat.com/show_bug.cgi?id=1090648}{Bugzilla 1090648 - glance-manage db\_sync silently fails to prepare the database}},language=bash]
 2014-08-12 15:06:55.083 1694 CRITICAL glance [-] ValueError: Tables "migrate_version" have non utf8 collation, please make sure all tables are CHARSET=utf8
 2014-08-12 15:06:55.083 1694 TRACE glance Traceback (most recent call last):
 2014-08-12 15:06:55.083 1694 TRACE glance   File "/bin/glance-manage", line 10, in <module>
@@ -354,12 +354,21 @@ ocs /etc/glance/glance-registry.conf keystone_authtoken admin_password trustn01
 2014-08-12 15:06:55.083 1694 TRACE glance
 \end{lstlisting}
 
-\begin{lstlisting}[caption={\danger Red Hat bug},language=bash]
+\begin{lstlisting}[caption={Workaround - db\_enforce\_mysql\_charset=False },language=bash]
 vi /etc/glance/glance-api.conf 
 su -s /bin/sh -c "glance-manage db_sync" glance
 mysql -u glance -p -e "show tables" glance
 \end{lstlisting}
+\begin{lstlisting}[caption={Start and enable Glance Services},language=bash]
+for ops_service in "openstack-glance-registry" "openstack-glance-api" ; do systemctl enable $ops_service; systemctl start $ops_service; done
 
+\end{lstlisting}
+
+\begin{lstlisting}[caption={Add Cirros Image},language=bash]
+wget http://download.cirros-cloud.net/0.3.2/cirros-0.3.2-x86_64-disk.img
+
+glance image-create --name "cirros" --is-public true --disk-format qcow2 --container-format bare --file cirros-0.3.2-x86_64-disk.img 
+\end{lstlisting}
 
 
 \end{document}
