@@ -204,7 +204,7 @@ Creating user "heat" ...
 \chapter{Keystone}
 
 \section{Installation}
-\begin{lstlisting}[caption={foo},language=bash]
+\begin{lstlisting}[caption={Install Keystone packages},language=bash]
 yi openstack-keystone openstack-utils 
 mysql -u root -p
 export SERVICE_TOKEN=$(openssl rand -hex 10)
@@ -213,7 +213,7 @@ echo $SERVICE_TOKEN > ~/ks_admin_token
 
 \section{Database}
 
-\begin{lstlisting}[caption={foo},language=bash]
+\begin{lstlisting}[caption={Keystone configuration},language=bash]
 chown -R keystone:keystone /var/log/keystone /etc/keystone/ssl/
 chmod -R o-rwx /etc/keystone/ssl
 ocs /etc/keystone/keystone.conf DEFAULT admin_token $SERVICE_TOKEN
@@ -250,7 +250,11 @@ unset OS_SERVICE_TOKEN
 unset SERVICE_TOKEN
 \end{lstlisting}
 
-\begin{huge} \danger \end{huge} Make sure that you unset environmental variables or you will receive keystone errors like below.
+\begin{flushleft}
+
+\makebox[\textwidth]{\begin{huge} \danger \end{huge}
+Make sure that you unset environmental variables or you will receive keystone errors.}
+\end{flushleft}
 
 
 \begin{lstlisting}[caption={Keystone Error Message},language=bash]
@@ -333,8 +337,6 @@ ocs /etc/glance/glance-registry.conf keystone_authtoken admin_user glance
 ocs /etc/glance/glance-registry.conf keystone_authtoken admin_password trustn01
 \end{lstlisting}
 
-
-%
 \begin{lstlisting}[numbers=none,caption={\href{https://bugzilla.redhat.com/show_bug.cgi?id=1090648}{Bugzilla 1090648 - glance-manage db\_sync silently fails to prepare the database}},language=bash]
 2014-08-12 15:06:55.083 1694 CRITICAL glance [-] ValueError: Tables "migrate_version" have non utf8 collation, please make sure all tables are CHARSET=utf8
 2014-08-12 15:06:55.083 1694 TRACE glance Traceback (most recent call last):
