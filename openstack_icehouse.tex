@@ -182,7 +182,7 @@ start rabbitmq-server.service
 \end{lstlisting}
 
 \begin{lstlisting}[caption={Create RabbitMQ User Accounts},language=bash]
-for serv in "cinder" "nova" "neutron" "heat"; do passwd=`openssl rand -base64 8`; echo "$serv - $passwd"; rabbitmqctl add_user $serv $passwd; done
+for serv in "cinder" "nova" "neutron" "heat"; do passwd=`openssl rand -base64 8`; echo "$serv - $passwd"; rabbitmqctl add_user $serv $passwd; rabbitmqctl set_permissions -p / $serv ".*" ".*" ".*"; done
 \end{lstlisting}
 
 
@@ -251,7 +251,6 @@ unset SERVICE_TOKEN
 \end{lstlisting}
 
 \begin{flushleft}
-
 \makebox[\textwidth]{\begin{huge} \danger \end{huge}
 Make sure that you unset environmental variables or you will receive keystone errors.}
 \end{flushleft}
@@ -370,6 +369,58 @@ for ops_service in "openstack-glance-registry" "openstack-glance-api" ; do syste
 wget http://download.cirros-cloud.net/0.3.2/cirros-0.3.2-x86_64-disk.img
 
 glance image-create --name "cirros" --is-public true --disk-format qcow2 --container-format bare --file cirros-0.3.2-x86_64-disk.img 
+\end{lstlisting}
+
+
+\chapter{Cinder}
+
+\begin{lstlisting}[caption={},language=bash]
+keystone user-create --name cinder --pass trustn01
+
+keystone user-role-add --user cinder --role admin --tenant service
+keystone service-create --name cinder --type volume --description "Cinder Volume Service"
+
+keystone endpoint-create --service cinder --publicurl "http://10.53.252.62:8776/v1/\$(tenant_id)s" --adminurl "http://10.53.252.62:8776/v1/\$(tenant_id)s" --internalurl "http://10.53.252.62:8776/v1/\$(tenant_id)s"
+
+mysql -u cinder -p -e "show tables" cinder
+
+\end{lstlisting}
+
+\begin{lstlisting}[caption={},language=bash]
+yi openstack-cinder openstack-utils scsi-target-utils
+
+ocs /etc/cinder/cinder.conf DEFAULT auth_strategy keystone
+ocs /etc/cinder/cinder.conf keystone_authtoken auth_host 10.53.252.61
+ocs /etc/cinder/cinder.conf keystone_authtoken admin_tenant_name service
+ocs /etc/cinder/cinder.conf keystone_authtoken admin_user cinder
+ocs /etc/cinder/cinder.conf keystone_authtoken admin_password trustn01
+
+vgcreate cinder-volumes /dev/vdb
+
+
+ocs /etc/cinder/cinder.conf DEFAULT rpc_backend cinder.openstack.common.rpc.impl_kombu
+ocs /etc/cinder/cinder.conf DEFAULT rabbit_host 10.53.252.61
+ocs /etc/cinder/cinder.conf DEFAULT rabbit_port 5672
+ocs /etc/cinder/cinder.conf DEFAULT rabbit_userid cinder
+ocs /etc/cinder/cinder.conf DEFAULT rabbit_password Q7gPp1FOK5g=
+
+ocs /etc/cinder/cinder.conf DEFAULT sql_connection mysql://cinder:trustn01@10.53.252.61/cinder
+
+su -s /bin/sh -c "cinder-manage db sync" cinder
+
+\end{lstlisting}
+
+\begin{lstlisting}[caption={add * to include /etc/cinder/volumes/},language=bash]
+add * to include /etc/cinder/volumes/
+vi /etc/tgt/conf.d/cinder.conf
+\end{lstlisting}
+
+
+\begin{flushleft}
+\begin{huge} \danger \end{huge} Confirm RabbitMQ Status
+\end{flushleft}
+\begin{lstlisting}[caption={},language=bash]
+rabbitmqctl status
 \end{lstlisting}
 
 
