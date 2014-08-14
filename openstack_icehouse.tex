@@ -423,6 +423,97 @@ vi /etc/tgt/conf.d/cinder.conf
 rabbitmqctl status
 \end{lstlisting}
 
+\chapter{Nova Controller}
+
+\begin{lstlisting}[caption={},language=bash]
+yum install openstack-nova-api openstack-nova-cert openstack-nova-conductor openstack-nova-console openstack-nova-novncproxy openstack-nova-scheduler python-novaclient
+ocs /etc/nova/nova.conf database connection mysql://nova:trustn01@10.53.252.61/nova
+ocs /etc/nova/nova.conf DEFAULT rpc_backend rabbit
+ocs /etc/nova/nova.conf DEFAULT rabbit_host 10.53.252.61
+ocs /etc/nova/nova.conf DEFAULT rabbit_port 5672
+ocs /etc/nova/nova.conf DEFAULT rabbit_userid nova
+ocs /etc/nova/nova.conf DEFAULT rabbit_password '2mM7OaVNFKM='
+alias yi="yum -y install"
+alias start="systemctl start"
+alias e="systemctl enable"
+alias ocs="openstack-config --set"
+clear
+ocs /etc/nova/nova.conf database connection mysql://nova:trustn01@10.53.252.61/nova
+ocs /etc/nova/nova.conf DEFAULT rpc_backend rabbit
+ocs /etc/nova/nova.conf DEFAULT rabbit_host 10.53.252.61
+ocs /etc/nova/nova.conf DEFAULT rabbit_port 5672
+ocs /etc/nova/nova.conf DEFAULT rabbit_userid nova
+ocs /etc/nova/nova.conf DEFAULT rabbit_password '2mM7OaVNFKM='
+ocs /etc/nova/nova.conf DEFAULT my_ip 10.53.252.62
+ocs /etc/nova/nova.conf DEFAULT vncserver_listen 10.53.252.62
+ocs /etc/nova/nova.conf DEFAULT vncserver_proxyclient_address 10.53.252.62
+\end{lstlisting}
+
+\chapter{Neutron}
+
+\begin{lstlisting}[caption={Neutron virctlpaw001},language=bash]
+keystone user-create --name neutron --pass trustn01
+keystone user-role-add --user neutron --role admin --tenant service
+keystone service-create --name neutron --type network --description "OpenStack Networking Service"
+keystone endpoint-create --service neutron --publicurl "http://10.53.252.63:9696" --adminurl "http://10.53.252.63:9696" --internalurl "http://10.53.252.63:9696"
+
+mysql -u root -p
+ocs /etc/neutron/plugin.ini DATABASE sql_connection mysql://neutron:trustn01@10.53.252.61/neutron_ml2
+mysql -u neutron -p -e "show tables" neutron
+\end{lstlisting}
+
+\begin{lstlisting}[caption={Neutron virneupaw001},language=bash]
+yum install openstack-neutron openstack-neutron-ml2 openstack-utils -y
+alias yi="yum -y install"
+alias start="systemctl start"
+alias e="systemctl enable"
+alias ocs="openstack-config --set"
+ocs /etc/neutron/neutron.conf DEFAULT auth_strategy keystone
+ocs /etc/neutron/neutron.conf keystone_authtoken auth_host 10.53.252.61
+ocs /etc/neutron/neutron.conf keystone_authtoken admin_tenant_name service
+ocs /etc/neutron/neutron.conf keystone_authtoken admin_user neutron
+ocs /etc/neutron/neutron.conf keystone_authtoken admin_password trustn01
+clear
+ocs /etc/neutron/neutron.conf DEFAULT rpc_backend neutron.openstack.common.rpc.impl_kombu
+ocs /etc/neutron/neutron.conf DEFAULT rabbit_host 10.53.252.61
+ocs /etc/neutron/neutron.conf DEFAULT rabbit_port 5672
+ocs /etc/neutron/neutron.conf DEFAULT rabbit_userid neutron
+ocs /etc/neutron/neutron.conf DEFAULT rabbit_password 'krPOwjPbKJs='
+ln -s /etc/neutron/plugins/ml2/ml2_conf.ini
+ln -s /etc/neutron/plugins/ml2/ml2_conf.ini /etc/neutron/plugin.ini
+ls
+rm ml2_conf.ini 
+ocs /etc/neutron/plugin.ini DATABASE sql_connection mysql://neutron:trustn01@10.53.252.61/neutron
+ocs /etc/neutron/plugin.ini DATABASE sql_connection mysql://neutron:trustn01@10.53.252.61/neutron_ml2
+neutron-db-manage --config-file /usr/share/neutron/neutron-dist.conf --config-file /etc/neutron/neutron.conf --config /etc/neutron/plugin.ini upgrade head
+neutron-db-manage --config-file /usr/share/neutron/neutron-dist.conf --config-file /etc/neutron/neutron.conf --config-file /etc/neutron/plugin.ini upgrade head
+vi /etc/neutron/plugin.ini 
+vi /etc/neutron/neutron.conf 
+neutron-db-manage --config-file /usr/share/neutron/neutron-dist.conf --config-file /etc/neutron/neutron.conf --config-file /etc/neutron/plugin.ini upgrade head
+touch /etc/sysconfig/iptables
+ocs /etc/neutron/dhcp_agent.ini DEFAULT auth_strategy keystone
+ocs /etc/neutron/dhcp_agent.ini keystone_authtoken auth_host 10.53.252.61
+ocs /etc/neutron/dhcp_agent.ini keystone_authtoken admin_tenant_name service
+ocs /etc/neutron/dhcp_agent.ini keystone_authtoken admin_user neutron
+ocs /etc/neutron/dhcp_agent.ini keystone_authtoken admin_password trustn01
+ocs /etc/neutron/dhcp_agent.ini DEFAULT interface_driver neutron.agent.linux.interface.OVSInterfaceDriver
+clear
+for ops_service in "neutron-server" "neutron-dhcp-agent" ; do systemctl enable $ops_service; systemctl start $ops_service; done
+cd /var/log/neutron/
+ls
+tail server.log 
+vi /etc/neutron/plugin.ini 
+systemctl restart neutron-server.service 
+ls
+tail server.log 
+vi /etc/neutron/plugin.ini 
+systemctl restart neutron-server.service 
+tail server.log 
+cat /etc/neutron/plugin.ini 
+yum install openstack-neutron-openvswitch.noarch -y
+\end{lstlisting}
+
+
 
 \end{document}
 
