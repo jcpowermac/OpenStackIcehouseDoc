@@ -11,6 +11,7 @@
 \usepackage{multicol}
 \usepackage{caption}
 \usepackage{courier}
+\usepackage{comment}
 \usepackage[letterpaper]{geometry}
 
 %http://stackoverflow.com/questions/741985/latex-source-code-listing-like-in-professional-books
@@ -44,7 +45,8 @@ breakatwhitespace=false
 
 \setcounter{secnumdepth}{4}
 
-\title{OpenStack Icehouse Multiple Virtual Machines Manual}
+\title{OpenStack Icehouse Multiple Virtual Machines \\ 
+Manual Install}
 \author{Joseph Callen}
 
 \begin{document}
@@ -53,10 +55,24 @@ breakatwhitespace=false
 
 
 \maketitle
+\newenvironment{acknowledgements}%
+    {\cleardoublepage\thispagestyle{empty}\null\vfill\begin{center}%
+    \bfseries Acknowledgements\end{center}}%
+    {\vfill\null}
+        \begin{acknowledgements}
+        This document is a culmination of the Red Hat and OpenStack documentation for Icehouse. 
+        \end{acknowledgements}
+\tableofcontents
+\listoffigures
+\listoftables
+\lstlistoflistings
+
+
+
 \mainmatter
 
 
-
+\begin{comment}
 \chapter{Packstack}
 \section{Prerequisites}
 You can use any hypervisor: VMware Workstation, Fusion, Player, ESXi, KVM w/virt-manager (you don't really need virt-manager with KVM, just makes it easier) or  VirtualBox.  As of this writing download a network-based install CD of Fedora 20.  This will allow you to create a minimal install that is all up to date.  The OS disk needs minimally 8 GB and a secondary disk for cinder volumes which should be at least 20 GB.  I recommend using the NAT network interface since it will provide a route and DNS.  We will overlap IP addresses of the DHCP server but that shouldn't be an issue unless you have multiple virtual machines running.
@@ -122,6 +138,8 @@ DNS1=192.168.122.1
 \end{lstlisting}
 At this point let us reboot.  When the virtual machine is available make sure that you can still reach the default gateway, then proceed to the next section.
 
+\end{comment}
+
 \chapter{Physical Hardware}
 \begin{lstlisting}[caption={Open vSwitch},language=xml]
 <network>
@@ -150,12 +168,12 @@ At this point let us reboot.  When the virtual machine is available make sure th
 \end{lstlisting}
 
 \section{Clone and sysprep}
-\begin{lstlisting}[caption={Sysprep example},language=bash]
-virt-sysprep -a /dev/virtualmachine/virctlpaw001 --hostname virctlpaw001.virtomation.com \
---firstboot-command "sed -i -r 's/IPADDR=(\b[0-9]{1,3}\.){3}[0-9]{1,3}\b'/IPADDR=10.53.252.61/ /etc/sysconfig/network-scripts/ifcfg-eth0" \
---firstboot-command 'systemctl restart network' \
---firstboot-command 'yum install -y http://rdo.fedorapeople.org/rdo-release.rpm' \
---firstboot-command 'yum install openstack-packstack -y' 
+\begin{lstlisting}[caption={Clone using virt-clone},language=bash]
+virt-clone -o fedora20 -n virneupaw001 --auto-clone
+\end{lstlisting}
+
+\begin{lstlisting}[caption={Sysprep using virt-sysprep},language=bash]
+virt-sysprep -a /dev/virtualmachine/virctlpaw001 --hostname virctlpaw001.virtomation.com --firstboot-command "sed -i -r 's/IPADDR=(\b[0-9]{1,3}\.){3}[0-9]{1,3}\b'/IPADDR=10.53.252.61/ /etc/sysconfig/network-scripts/ifcfg-eth0" --firstboot-command 'systemctl restart network' --firstboot-command 'yum install -y http://rdo.fedorapeople.org/rdo-release.rpm' --firstboot-command 'yum install openstack-packstack -y' 
 \end{lstlisting}
 
 \chapter{Prerequisites}
