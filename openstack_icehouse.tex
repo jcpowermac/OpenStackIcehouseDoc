@@ -141,7 +141,64 @@ At this point let us reboot.  When the virtual machine is available make sure th
 \end{comment}
 
 \chapter{Physical Hardware}
-\begin{lstlisting}[caption={Open vSwitch},language=xml]
+\section{Cisco Catalyst 4006 Configuration}
+\begin{lstlisting}[caption={Trunk and Port Channel},language=bash]
+interface Port-channel1
+ switchport
+ switchport trunk encapsulation dot1q
+ switchport trunk allowed vlan 2-4,12,80,81,100,250-253,2168
+ switchport mode trunk
+ switchport nonegotiate
+ spanning-tree portfast trunk
+end
+
+interface GigabitEthernet3/20
+ switchport access vlan 253
+ switchport trunk encapsulation dot1q
+ switchport trunk allowed vlan 2-4,12,80,81,100,250-253,2168
+ switchport mode trunk
+ switchport nonegotiate
+ channel-group 1 mode active
+end
+
+interface GigabitEthernet3/21
+ switchport trunk encapsulation dot1q
+ switchport trunk allowed vlan 2-4,12,80,81,100,250-253,2168
+ switchport mode trunk
+ switchport nonegotiate
+ channel-group 1 mode active
+end
+\end{lstlisting}
+
+\section{Open vSwitch Bridge}
+\begin{lstlisting}[caption={Open vSwitch},language=bash]
+ovs-vsctl add-br ovsbr0
+ovs-vsctl add-bond ovsbr0 bond0 enp19s4f0 enp19s4f1
+ovs-vsctl set port bond0 lacp=active
+ovs-vsctl set port bond0 bond_mode=balance-slb
+\end{lstlisting}
+
+\begin{lstlisting}[caption={ifcfg scripts},language=bash]
+DEVICE="bond0"
+ONBOOT="yes"
+DEVICETYPE="ovs"
+TYPE="OVSBond"
+OVS_BRIDGE="ovsbr0"
+BOOTPROTO="none"
+BOND_IFACES="enp19s4f0 enp19s4f1"
+OVS_OPTIONS="bond_mode=balance-slb lacp=active"
+HOTPLUG="no"
+
+DEVICE="ovsbr0"
+ONBOOT="yes"
+DEVICETYPE="ovs"
+TYPE="OVSBridge"
+BOOTPROTO="none"
+HOTPLUG="no"
+\end{lstlisting}
+
+
+\begin{lstlisting}[caption={Libvirt and Open vSwitch},language=xml]
 <network>
   <name>ovs-network</name>
   <uuid>2fde288e-242c-4b48-95f4-28f844c768f4</uuid>
@@ -451,11 +508,7 @@ ocs /etc/nova/nova.conf DEFAULT rabbit_host 10.53.252.61
 ocs /etc/nova/nova.conf DEFAULT rabbit_port 5672
 ocs /etc/nova/nova.conf DEFAULT rabbit_userid nova
 ocs /etc/nova/nova.conf DEFAULT rabbit_password '2mM7OaVNFKM='
-alias yi="yum -y install"
-alias start="systemctl start"
-alias e="systemctl enable"
-alias ocs="openstack-config --set"
-clear
+
 ocs /etc/nova/nova.conf database connection mysql://nova:trustn01@10.53.252.61/nova
 ocs /etc/nova/nova.conf DEFAULT rpc_backend rabbit
 ocs /etc/nova/nova.conf DEFAULT rabbit_host 10.53.252.61
@@ -466,6 +519,43 @@ ocs /etc/nova/nova.conf DEFAULT my_ip 10.53.252.62
 ocs /etc/nova/nova.conf DEFAULT vncserver_listen 10.53.252.62
 ocs /etc/nova/nova.conf DEFAULT vncserver_proxyclient_address 10.53.252.62
 \end{lstlisting}
+
+\begin{lstlisting}[caption={virctlpaw001},language=bash]
+keystone user-create --name=nova --pass=trustn01 
+keystone user-role-add --user=nova --tenant=service --role=admin
+
+mysql -u root -p
+keystone endpoint-create --service nova --publicurl=http://10.53.252.62:8774/v2/%\(tenant_id\)s --internalurl=http://10.53.252.62:8774/v2/%\(tenant_id\)s --adminurl=http://10.53.252.62:8774/v2/%\(tenant_id\)s
+keystone service-create --name=nova --type=compute --description="OpenStack Compute"
+keystone endpoint-create --service nova --publicurl=http://10.53.252.62:8774/v2/%\(tenant_id\)s --internalurl=http://10.53.252.62:8774/v2/%\(tenant_id\)s --adminurl=http://10.53.252.62:8774/v2/%\(tenant_id\)s
+mysql -u nova -p -e "show tables" nova
+
+\end{lstlisting}
+
+\begin{lstlisting}[caption={virctlpaw002},language=bash]
+ocs /etc/nova/nova.conf DEFAULT auth_strategy keystone
+ocs /etc/nova/nova.conf keystone_authtoken auth_uri http://10.53.252.61:5000
+ocs /etc/nova/nova.conf keystone_authtoken auth_host 10.53.252.61
+ocs /etc/nova/nova.conf keystone_authtoken auth_protocol http
+ocs /etc/nova/nova.conf keystone_authtoken auth_port 35357
+ocs /etc/nova/nova.conf keystone_authtoken admin_user nova
+ocs /etc/nova/nova.conf keystone_authtoken admin_tenant_name service
+ocs /etc/nova/nova.conf keystone_authtoken admin_password trustn01
+su -s /bin/sh -c "nova-manage db sync" nova
+for ops_service in "openstack-nova-api" "openstack-nova-cert" "openstack-nova-consoleauth" "openstack-nova-scheduler" "openstack-nova-conductor" "openstack-nova-novncproxy"; do systemctl enable $ops_service; systemctl start $ops_service; done
+egrep 'ERROR' /var/log/nova/*
+
+
+\end{lstlisting}
+
+\begin{lstlisting}[caption={Nova Glance configuration},language=bash]
+ocs /etc/nova/nova.conf DEFAULT image_service nova.image.glance.GlanceImageService
+ocs /etc/nova/nova.conf DEFAULT glance_host 10.53.252.61
+ocs /etc/nova/nova.conf DEFAULT glance_port 9292
+ocs /etc/nova/nova.conf DEFAULT glance_protocol http
+ocs /etc/nova/nova.conf DEFAULT glance_api_servers 10.53.252.61:9292
+\end{lstlisting}
+
 
 \chapter{Neutron}
 
@@ -499,8 +589,8 @@ ocs /etc/neutron/neutron.conf DEFAULT rabbit_userid neutron
 ocs /etc/neutron/neutron.conf DEFAULT rabbit_password 'krPOwjPbKJs='
 ln -s /etc/neutron/plugins/ml2/ml2_conf.ini
 ln -s /etc/neutron/plugins/ml2/ml2_conf.ini /etc/neutron/plugin.ini
-ls
-rm ml2_conf.ini 
+
+
 ocs /etc/neutron/plugin.ini DATABASE sql_connection mysql://neutron:trustn01@10.53.252.61/neutron
 ocs /etc/neutron/plugin.ini DATABASE sql_connection mysql://neutron:trustn01@10.53.252.61/neutron_ml2
 neutron-db-manage --config-file /usr/share/neutron/neutron-dist.conf --config-file /etc/neutron/neutron.conf --config /etc/neutron/plugin.ini upgrade head
