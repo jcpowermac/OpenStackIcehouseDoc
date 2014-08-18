@@ -556,6 +556,32 @@ su -s /bin/sh -c "nova-manage db sync" nova
 for ops_service in "openstack-nova-api" "openstack-nova-cert" "openstack-nova-consoleauth" "openstack-nova-scheduler" "openstack-nova-conductor" "openstack-nova-novncproxy"; do systemctl enable $ops_service; systemctl start $ops_service; done
 egrep 'ERROR' /var/log/nova/*
 
+ocs /etc/nova/nova.conf DEFAULT network_api_class nova.network.neutronv2.api.API
+ocs /etc/nova/nova.conf DEFAULT neutron_url http://10.53.252.63:9696
+ocs /etc/nova/nova.conf DEFAULT neutron_auth_strategy keystone
+ocs /etc/nova/nova.conf DEFAULT neutron_admin_tenant_name service
+ocs /etc/nova/nova.conf DEFAULT neutron_admin_username neutron
+ocs /etc/nova/nova.conf DEFAULT neutron_admin_password trustn01
+ocs /etc/nova/nova.conf DEFAULT neutron_admin_auth_url http://10.53.252.61:35357/v2.0
+ocs /etc/nova/nova.conf DEFAULT linuxnet_interface_driver nova.network.linux_net.LinuxOVSInterfaceDriver
+ocs /etc/nova/nova.conf DEFAULT firewall_driver nova.virt.firewall.NoopFirewallDriver
+ocs /etc/nova/nova.conf DEFAULT security_group_api neutron
+openstack-service restart nova
+cd /var/log/
+ls
+cd nova/
+ls
+egrep 'ERROR' *
+clear
+ls
+tail nova-api.log 
+tail nova-conductor.log 
+tail nova-manage.log 
+tail nova-scheduler.log 
+clear
+ocs /etc/nova/nova.conf DEFAULT service_neutron_metadata_proxy true
+ocs /etc/nova/nova.conf DEFAULT neutron_metadata_proxy_shared_secret trustn01
+
 
 \end{lstlisting}
 
@@ -593,6 +619,57 @@ ocs /etc/nova/nova.conf DEFAULT rabbit_password '2mM7OaVNFKM='
 ocs /etc/nova/nova.conf DEFAULT my_ip 10.53.252.64
 ocs /etc/nova/nova.conf DEFAULT vncserver_listen 10.53.252.64
 ocs /etc/nova/nova.conf DEFAULT vncserver_proxyclient_address 10.53.252.62
+
+ocs /etc/nova/nova.conf DEFAULT image_service nova.image.glance.GlanceImageService
+ocs /etc/nova/nova.conf DEFAULT glance_host 10.53.252.61
+ocs /etc/nova/nova.conf DEFAULT glance_port 9292
+ocs /etc/nova/nova.conf DEFAULT glance_protocol http
+ocs /etc/nova/nova.conf DEFAULT glance_api_servers 10.53.252.61:9292
+
+ocs /etc/nova/nova.conf DEFAULT network_api_class nova.network.neutronv2.api.API
+ocs /etc/nova/nova.conf DEFAULT neutron_url http://10.53.252.63:9696
+ocs /etc/nova/nova.conf DEFAULT neutron_auth_strategy keystone
+ocs /etc/nova/nova.conf DEFAULT neutron_admin_tenant_name service
+ocs /etc/nova/nova.conf DEFAULT neutron_admin_username neutron
+ocs /etc/nova/nova.conf DEFAULT neutron_admin_password trustn01
+ocs /etc/nova/nova.conf DEFAULT neutron_admin_auth_url http://10.53.252.61:35357/v2.0
+ocs /etc/nova/nova.conf DEFAULT linuxnet_interface_driver nova.network.linux_net.LinuxOVSInterfaceDriver
+ocs /etc/nova/nova.conf DEFAULT firewall_driver nova.virt.firewall.NoopFirewallDriver
+ocs /etc/nova/nova.conf DEFAULT security_group_api neutron
+
+
+ocs /etc/neutron/neutron.conf DEFAULT auth_strategy keystone
+ocs /etc/neutron/neutron.conf DEFAULT rpc_backend neutron.openstack.common.rpc.impl_kombu
+ocs /etc/neutron/neutron.conf DEFAULT rabbit_host 10.53.252.61
+ocs /etc/neutron/neutron.conf DEFAULT rabbit_port 5672
+ocs /etc/neutron/neutron.conf DEFAULT rabbit_userid neutron
+ocs /etc/neutron/neutron.conf DEFAULT rabbit_password 'krPOwjPbKJs='
+ocs /etc/neutron/neutron.conf keystone_authtoken auth_uri http://10.53.252.61:5000
+ocs /etc/neutron/neutron.conf keystone_authtoken auth_host 10.53.252.61
+ocs /etc/neutron/neutron.conf keystone_authtoken auth_protocol http
+ocs /etc/neutron/neutron.conf keystone_authtoken auth_port 35357
+ocs /etc/neutron/neutron.conf keystone_authtoken admin_tenant_name service
+ocs /etc/neutron/neutron.conf keystone_authtoken admin_user neutron
+ocs /etc/neutron/neutron.conf keystone_authtoken admin_password trustn01
+ocs /etc/neutron/neutron.conf DEFAULT core_plugin ml2
+ocs /etc/neutron/neutron.conf DEFAULT service_plugins router
+ocs /etc/neutron/plugins/ml2/ml2_conf.ini ml2 type_drivers gre
+ocs /etc/neutron/plugins/ml2/ml2_conf.ini ml2 tenant_network_types gre
+ocs /etc/neutron/plugins/ml2/ml2_conf.ini ml2 mechanism_drivers openvswitch
+ocs /etc/neutron/plugins/ml2/ml2_conf.ini ml2_type_gre tunnel_id_ranges 1:1000
+ocs /etc/neutron/plugins/ml2/ml2_conf.ini ovs local_ip 10.53.252.164
+ocs /etc/neutron/plugins/ml2/ml2_conf.ini ovs tunnel_type gre
+ocs /etc/neutron/plugins/ml2/ml2_conf.ini ovs enable_tunneling True
+ocs /etc/neutron/plugins/ml2/ml2_conf.ini securitygroup firewall_driver neutron.agent.linux.iptables_firewall.OVSHybridIptablesFirewallDriver
+ocs /etc/neutron/plugins/ml2/ml2_conf.ini securitygroup enable_security_group True
+
+systemctl start openvswitch 
+systemctl enable openvswitch 
+ovs-vsctl add-br br-int
+ln -s plugins/ml2/ml2_conf.ini /etc/neutron/plugin.ini 
+ovs-vsctl add-br br-tun
+
+
 \end{lstlisting}
 
 \chapter{Neutron}
@@ -657,6 +734,33 @@ systemctl restart neutron-server.service
 tail server.log 
 cat /etc/neutron/plugin.ini 
 yum install openstack-neutron-openvswitch.noarch -y
+
+ocs /etc/neutron/neutron.conf DEFAULT notify_nova_on_port_status_changes True
+ocs /etc/neutron/neutron.conf DEFAULT notify_nova_on_port_data_changes True
+ocs /etc/neutron/neutron.conf DEFAULT nova_url http://10.53.252.62:8774/v2
+ocs /etc/neutron/neutron.conf DEFAULT nova_admin_username nova
+ocs /etc/neutron/neutron.conf DEFAULT nova_admin_tenant_id service
+ocs /etc/neutron/neutron.conf DEFAULT nova_admin_password trustn01
+ocs /etc/neutron/neutron.conf DEFAULT nova_admin_auth_url http://10.53.252.61:35357/v2.0
+
+
+ocs /etc/neutron/neutron.conf DEFAULT core_plugin ml2
+ocs /etc/neutron/neutron.conf DEFAULT service_plugins router
+
+
+ocs /etc/neutron/plugins/ml2/ml2_conf.ini ml2 type_drivers gre
+ocs /etc/neutron/plugins/ml2/ml2_conf.ini ml2 tenant_network_types gre
+ocs /etc/neutron/plugins/ml2/ml2_conf.ini ml2 mechanism_drivers openvswitch
+ocs /etc/neutron/plugins/ml2/ml2_conf.ini ml2_type_gre tunnel_id_ranges 1:1000
+ocs /etc/neutron/plugins/ml2/ml2_conf.ini ovs local_ip 10.53.252.163
+ocs /etc/neutron/plugins/ml2/ml2_conf.ini ovs tunnel_type gre
+ocs /etc/neutron/plugins/ml2/ml2_conf.ini ovs enable_tunneling True
+ocs /etc/neutron/plugins/ml2/ml2_conf.ini securitygroup firewall_driver neutron.agent.linux.iptables_firewall.OVSHybridIptablesFirewallDriver
+ocs /etc/neutron/plugins/ml2/ml2_conf.ini securitygroup enable_security_group True
+
+
+ocs /etc/neutron/l3_agent.ini DEFAULT interface_driver neutron.agent.linux.interface.OVSInterfaceDriver
+ocs /etc/neutron/l3_agent.ini DEFAULT use_namespaces True
 \end{lstlisting}
 
 
