@@ -12,6 +12,7 @@
 \usepackage{caption}
 \usepackage{courier}
 \usepackage{comment}
+\usepackage{ulem}
 \usepackage[letterpaper]{geometry}
 
 %http://stackoverflow.com/questions/741985/latex-source-code-listing-like-in-professional-books
@@ -250,6 +251,26 @@ netstat -tanp | grep 3306
 mysql_secure_installation 
 \end{lstlisting}
 
+\begin{lstlisting}[caption={},language=sql]
+CREATE DATABASE keystone;
+CREATE DATABASE nova;
+CREATE DATABASE glance;
+CREATE DATABASE cinder;
+CREATE DATABASE neutron_ml2;
+GRANT ALL PRIVILEGES ON keystone.* TO 'keystone'@'localhost' IDENTIFIED BY 'trustn01';
+GRANT ALL PRIVILEGES ON keystone.* TO 'keystone'@'%' IDENTIFIED BY 'trustn01';
+GRANT ALL PRIVILEGES ON nova.* TO 'nova'@'localhost' IDENTIFIED BY 'trustn01';
+GRANT ALL PRIVILEGES ON nova.* TO 'nova'@'%' IDENTIFIED BY 'trustn01';
+GRANT ALL PRIVILEGES ON glance.* TO 'glance'@'localhost' IDENTIFIED BY 'trustn01';
+GRANT ALL PRIVILEGES ON glance.* TO 'glance'@'%' IDENTIFIED BY 'trustn01';
+GRANT ALL PRIVILEGES ON cinder.* TO 'cinder'@'localhost' IDENTIFIED BY 'trustn01';
+GRANT ALL PRIVILEGES ON cinder.* TO 'cinder'@'%' IDENTIFIED BY 'trustn01';
+GRANT ALL PRIVILEGES ON neutron_ml2.* TO 'neutron'@'localhost' IDENTIFIED BY 'trustn01';
+GRANT ALL PRIVILEGES ON neutron_ml2.* TO 'neutron'@'%' IDENTIFIED BY 'trustn01';
+FLUSH PRIVILEGES;
+\end{lstlisting}
+
+
 \begin{lstlisting}[caption={RabbitMQ Install},language=bash]
 yi rabbitmq-server
 e rabbitmq-server
@@ -288,9 +309,9 @@ echo $SERVICE_TOKEN > ~/ks_admin_token
 
 \section{Database}
 
+\sout{\texttt{chmod -R o-rwx /etc/keystone/ssl}}
 \begin{lstlisting}[caption={Keystone configuration},language=bash]
 chown -R keystone:keystone /var/log/keystone /etc/keystone/ssl/
-chmod -R o-rwx /etc/keystone/ssl
 ocs /etc/keystone/keystone.conf DEFAULT admin_token $SERVICE_TOKEN
 ocs /etc/keystone/keystone.conf sql connection mysql://keystone:trustn01@10.53.252.61/keystone
 keystone-manage pki_setup --keystone-user keystone --keystone-group keystone 
@@ -527,12 +548,6 @@ mysql -u root -p
 \end{lstlisting}
 
 
-\begin{lstlisting}[caption={virctlpaw001},language=sql]
-CREATE DATABASE nova;
-GRANT ALL PRIVILEGES ON nova.* TO 'nova'@'localhost' IDENTIFIED BY 'trustn01';
-GRANT ALL PRIVILEGES ON nova.* TO 'nova'@'%' IDENTIFIED BY 'trustn01';
-FLUSH PRIVILEGES;
-\end{lstlisting}
 
 
 \begin{lstlisting}[caption={virctlpaw001},language=bash]
@@ -566,19 +581,6 @@ ocs /etc/nova/nova.conf DEFAULT neutron_admin_auth_url http://10.53.252.61:35357
 ocs /etc/nova/nova.conf DEFAULT linuxnet_interface_driver nova.network.linux_net.LinuxOVSInterfaceDriver
 ocs /etc/nova/nova.conf DEFAULT firewall_driver nova.virt.firewall.NoopFirewallDriver
 ocs /etc/nova/nova.conf DEFAULT security_group_api neutron
-openstack-service restart nova
-cd /var/log/
-ls
-cd nova/
-ls
-egrep 'ERROR' *
-clear
-ls
-tail nova-api.log 
-tail nova-conductor.log 
-tail nova-manage.log 
-tail nova-scheduler.log 
-clear
 ocs /etc/nova/nova.conf DEFAULT service_neutron_metadata_proxy true
 ocs /etc/nova/nova.conf DEFAULT neutron_metadata_proxy_shared_secret trustn01
 
@@ -669,6 +671,8 @@ ovs-vsctl add-br br-int
 ln -s plugins/ml2/ml2_conf.ini /etc/neutron/plugin.ini 
 ovs-vsctl add-br br-tun
 
+openstack-nova-compute 
+systemctl enable neutron-openvswitch-agent
 
 \end{lstlisting}
 
@@ -686,32 +690,22 @@ mysql -u neutron -p -e "show tables" neutron
 \end{lstlisting}
 
 \begin{lstlisting}[caption={Neutron virneupaw001},language=bash]
-yum install openstack-neutron openstack-neutron-ml2 openstack-utils -y
-alias yi="yum -y install"
-alias start="systemctl start"
-alias e="systemctl enable"
-alias ocs="openstack-config --set"
+yum install openstack-neutron openstack-neutron-ml2 openstack-utils openstack-neutron-openvswitch -y
+
 ocs /etc/neutron/neutron.conf DEFAULT auth_strategy keystone
 ocs /etc/neutron/neutron.conf keystone_authtoken auth_host 10.53.252.61
 ocs /etc/neutron/neutron.conf keystone_authtoken admin_tenant_name service
 ocs /etc/neutron/neutron.conf keystone_authtoken admin_user neutron
 ocs /etc/neutron/neutron.conf keystone_authtoken admin_password trustn01
-clear
+
 ocs /etc/neutron/neutron.conf DEFAULT rpc_backend neutron.openstack.common.rpc.impl_kombu
 ocs /etc/neutron/neutron.conf DEFAULT rabbit_host 10.53.252.61
 ocs /etc/neutron/neutron.conf DEFAULT rabbit_port 5672
 ocs /etc/neutron/neutron.conf DEFAULT rabbit_userid neutron
 ocs /etc/neutron/neutron.conf DEFAULT rabbit_password 'krPOwjPbKJs='
-ln -s /etc/neutron/plugins/ml2/ml2_conf.ini
+
 ln -s /etc/neutron/plugins/ml2/ml2_conf.ini /etc/neutron/plugin.ini
 
-
-ocs /etc/neutron/plugin.ini DATABASE sql_connection mysql://neutron:trustn01@10.53.252.61/neutron
-ocs /etc/neutron/plugin.ini DATABASE sql_connection mysql://neutron:trustn01@10.53.252.61/neutron_ml2
-neutron-db-manage --config-file /usr/share/neutron/neutron-dist.conf --config-file /etc/neutron/neutron.conf --config /etc/neutron/plugin.ini upgrade head
-neutron-db-manage --config-file /usr/share/neutron/neutron-dist.conf --config-file /etc/neutron/neutron.conf --config-file /etc/neutron/plugin.ini upgrade head
-vi /etc/neutron/plugin.ini 
-vi /etc/neutron/neutron.conf 
 neutron-db-manage --config-file /usr/share/neutron/neutron-dist.conf --config-file /etc/neutron/neutron.conf --config-file /etc/neutron/plugin.ini upgrade head
 touch /etc/sysconfig/iptables
 ocs /etc/neutron/dhcp_agent.ini DEFAULT auth_strategy keystone
@@ -720,20 +714,10 @@ ocs /etc/neutron/dhcp_agent.ini keystone_authtoken admin_tenant_name service
 ocs /etc/neutron/dhcp_agent.ini keystone_authtoken admin_user neutron
 ocs /etc/neutron/dhcp_agent.ini keystone_authtoken admin_password trustn01
 ocs /etc/neutron/dhcp_agent.ini DEFAULT interface_driver neutron.agent.linux.interface.OVSInterfaceDriver
+
 clear
 for ops_service in "neutron-server" "neutron-dhcp-agent" ; do systemctl enable $ops_service; systemctl start $ops_service; done
-cd /var/log/neutron/
-ls
-tail server.log 
-vi /etc/neutron/plugin.ini 
-systemctl restart neutron-server.service 
-ls
-tail server.log 
-vi /etc/neutron/plugin.ini 
-systemctl restart neutron-server.service 
-tail server.log 
-cat /etc/neutron/plugin.ini 
-yum install openstack-neutron-openvswitch.noarch -y
+
 
 ocs /etc/neutron/neutron.conf DEFAULT notify_nova_on_port_status_changes True
 ocs /etc/neutron/neutron.conf DEFAULT notify_nova_on_port_data_changes True
@@ -758,11 +742,62 @@ ocs /etc/neutron/plugins/ml2/ml2_conf.ini ovs enable_tunneling True
 ocs /etc/neutron/plugins/ml2/ml2_conf.ini securitygroup firewall_driver neutron.agent.linux.iptables_firewall.OVSHybridIptablesFirewallDriver
 ocs /etc/neutron/plugins/ml2/ml2_conf.ini securitygroup enable_security_group True
 
+cp /usr/lib/systemd/system/neutron-openvswitch-agent.service{,.orig}
+sed -i 's,plugins/openvswitch/ovs_neutron_plugin.ini,plugin.ini,g' /usr/lib/systemd/system/neutron-openvswitch-agent.service
+
+systemctl daemon-reload
 
 ocs /etc/neutron/l3_agent.ini DEFAULT interface_driver neutron.agent.linux.interface.OVSInterfaceDriver
 ocs /etc/neutron/l3_agent.ini DEFAULT use_namespaces True
+systemctl enable openvswitch
+systemctl start openvswitch
+
 \end{lstlisting}
 
+\begin{lstlisting}[caption={br-tun},language=bash]
+DEVICE="br-tun"
+ONBOOT="yes"
+DEVICETYPE="ovs"
+TYPE="OVSBridge"
+BOOTPROTO="static"
+HOTPLUG="no"
+IPADDR=10.53.252.164
+NETMASK=255.255.255.0
+\end{lstlisting}
+\begin{lstlisting}[caption={br-ex},language=bash]
+DEVICE="br-tun"
+ONBOOT="yes"
+DEVICETYPE="ovs"
+TYPE="OVSBridge"
+BOOTPROTO="static"
+HOTPLUG="no"
+IPADDR=10.53.252.164
+NETMASK=255.255.255.0
+\end{lstlisting}
+\begin{lstlisting}[caption={},language=bash]
+TYPE=OVSPort
+DEVICETYPE=ovs
+OVS_BRIDGE=br-ex
+BOOTPROTO=none
+HOTPLUG=no
+NAME="eth1"
+DEVICE=eth1
+NM_CONTROLLED=no
+ONBOOT=yes
+\end{lstlisting}
+
+\begin{lstlisting}[caption={},language=bash]
+TYPE=OVSPort
+DEVICETYPE=ovs
+OVS_BRIDGE=br-tun
+BOOTPROTO=none
+HOTPLUG=no
+NAME="eth2"
+DEVICE=eth2
+NM_CONTROLLED=no
+ONBOOT=yes
+
+\end{lstlisting}
 
 
 \end{document}
